@@ -4,6 +4,7 @@ from exceptions import FailedAuth
 from requests import post, get
 from urllib3 import disable_warnings
 from bs4 import BeautifulSoup, Tag
+from os.path import exists
 
 
 class GradeParser:
@@ -12,10 +13,14 @@ class GradeParser:
         self.__dis_list_names = ("current", "arrears")
         self.login: str = login
         self.password: str = password
-        self.url = "https://e.muiv.ru/login/index.php"
+        self.url: str = "https://e.muiv.ru/login/index.php"
+        self.DEBUG: int = 1 if exists("cabinet.html") else 0
 
     # Get all html data
     def html(self) -> str:
+        """
+        Return RAW html
+        """
         form = get(self.url, verify=False)
         token = search(r'logintoken" value="\S+"', form.text).group().split('"')[2]
         login_information = {'username': self.login,
@@ -25,7 +30,12 @@ class GradeParser:
                              'logintoken': token}
         return post(self.url, data=login_information, cookies=form.cookies, verify=False).text
 
-    def soup(self):
+    def soup(self) -> BeautifulSoup:
+        if self.DEBUG:
+            with open('cabinet.html', 'r', encoding="UTF-8") as file:
+                debug_file_data = file.read()
+            return BeautifulSoup(debug_file_data, 'lxml', element_classes={Tag: CustomTag})
+
         return BeautifulSoup(self.html(), 'lxml', element_classes={Tag: CustomTag})
 
     def student_name(self) -> str:
@@ -38,7 +48,7 @@ class GradeParser:
         except AttributeError:
             raise FailedAuth("Invalid username or password, please try again.")
 
-    def dis_lists(self):
+    def dis_lists(self) -> list:
         """
         Returns a list 0: Current courses 1: Arrears courses
         """
@@ -54,11 +64,7 @@ class GradeParser:
 
         data = {'user': {}}
 
-        # Stage 1
         data['user']['surname'], data['user']['name'], data['user']['patronymic'], *_ = self.student_name().split()
-
-        # Stage 2
-
         for dis_list_name, dis_list in zip(self.__dis_list_names, self.dis_lists()):
             data[f'{dis_list_name}_courses'] = {}
             data[f'{dis_list_name}_progress'] = {"course_count": 0,
@@ -73,7 +79,8 @@ class GradeParser:
                                                                            "teacher": dis_block.teacher,
                                                                            "middle": dis_block.middle,
                                                                            "until_complete": dis_block.until_complete,
-                                                                           **dis_block.tests}
+                                                                           "tests": dis_block.tests,
+                                                                           }
                 data[f'{dis_list_name}_progress']['course_count'] += 1
                 data[f'{dis_list_name}_progress']['course_done'] += 1 if dis_block.until_complete is None else 0
 
@@ -91,6 +98,55 @@ class GradeParser:
                     data[f'{dis_list_name}_progress']['test_count'] * 100)
         return data
 
+    def prettify_print(self) -> str:
+        """
+        Function for easy viewing when running locally in the console
+        """
+        data = self.json()
+        current_course = data.get("current_courses")
+        arrears = data.get("arrears")
+        message = f'| ФИО: {data["user"]["surname"]} {data["user"]["name"]} {data["user"]["patronymic"]}\n'
+        if current_course:
+            message += f'|-- Активные предметы:\n'
+            for course in current_course:
+                course_obj = current_course[course]
+                message += f'|  |- {course} | {course_obj["type"]}\n'
+                for test in course_obj["tests"]:
+                    test_obj = course_obj["tests"][test]
+                    message += f'|  |  |-- {test} - {test_obj["grade"]} ' \
+                               f'[{test_obj["availability"]} | Осталось попыток: {test_obj["attempts"]}]\n'
+
+                message += f'|  |  |- Средний балл: {course_obj["middle"]}\n'
+                message += f'|  |  |- Преподаватель: {course_obj["teacher"]}\n'
+                message += "| \n"
+        if arrears:
+            message += f'|- Активные предметы:\n'
+            for course in arrears:
+                course_obj = arrears[course]
+                message += f'|  |- {course} | {course_obj["type"]}\n'
+                for test in course_obj["tests"]:
+                    test_obj = course_obj["tests"][test]
+                    message += f'|  |  |- {test} - {test_obj["grade"]} [{test_obj["availability"]} | ' \
+                               f'Осталось попыток: {test_obj["attempts"]}]\n'
+
+                message += f'|  |  |- Средний балл: {course_obj["middle"]}\n'
+                message += f'|  |  |- Преподаватель: {course_obj["teacher"]}\n'
+
+        message += '|- Прогресс: \n'
+        message += '|  |- по дисциплинам:\n'
+        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["course_count"]}\n'
+        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["course_done"]}\n'
+        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["course_remained"]}\n'
+
+        message += '|  |- по тестам:\n'
+        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["test_count"]}\n'
+        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["test_done"]}\n'
+        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["test_remained"]}\n'
+
+        message += f'|- Процент выполнения: {data["current_progress"]["test_percentage_done"]}%'
+
+        return message
+
 
 if __name__ == "__main__":
     # From local usage import
@@ -98,4 +154,4 @@ if __name__ == "__main__":
     # ==================================================================================================================
 
     user = GradeParser(login=LOGIN, password=PASSWORD)
-    print(user.json())
+    print(user.prettify_print())
