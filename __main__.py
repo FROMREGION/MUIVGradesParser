@@ -135,13 +135,13 @@ class GradeParser:
         message += '|- Прогресс: \n'
         message += '|  |- по дисциплинам:\n'
         message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["course_count"]}\n'
-        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["course_done"]}\n'
-        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["course_remained"]}\n'
+        message += f'|  |  |- Кол-во решенных дисциплин: {data["current_progress"]["course_done"]}\n'
+        message += f'|  |  |- Кол-во оставшихся дисциплин: {data["current_progress"]["course_remained"]}\n'
 
         message += '|  |- по тестам:\n'
-        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["test_count"]}\n'
-        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["test_done"]}\n'
-        message += f'|  |  |- Кол-во дисциплин: {data["current_progress"]["test_remained"]}\n'
+        message += f'|  |  |- Кол-во тестов: {data["current_progress"]["test_count"]}\n'
+        message += f'|  |  |- Кол-во решенных тестов: {data["current_progress"]["test_done"]}\n'
+        message += f'|  |  |- Кол-во оставшихся тестов: {data["current_progress"]["test_remained"]}\n'
 
         message += f'|- Процент выполнения: {data["current_progress"]["test_percentage_done"]}%'
 
